@@ -17,7 +17,25 @@ const settingsRoutes = require('./src/routes/settings.routes');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests, etc)
+    if(!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'https://check-mate-nine.vercel.app'
+    ];
+    
+    if(allowedOrigins.indexOf(origin) === -1){
+      return callback(new Error('The CORS policy for this site does not allow access from the specified origin.'), false);
+    }
+    
+    return callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev')); // Logging middleware
