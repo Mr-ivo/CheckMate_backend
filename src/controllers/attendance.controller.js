@@ -2,7 +2,7 @@ const Attendance = require('../models/attendance.model');
 const Intern = require('../models/intern.model');
 
 /**
- * @desc    Record attendance check-in
+ * @desc    Record attendance check-in (requires signature for interns)
  * @route   POST /api/attendance/check-in
  * @access  Private
  */

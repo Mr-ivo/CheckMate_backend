@@ -92,7 +92,7 @@ exports.getAttendanceByDate = async (req, res) => {
 exports.updateAttendanceStatus = async (req, res) => {
   try {
     const { internId } = req.params;
-    const { status, date } = req.body;
+    const { status, date, notes } = req.body;
     
     if (!status || !['Present', 'Absent', 'Late', 'Excused'].includes(status)) {
       return res.status(400).json({
@@ -135,25 +135,31 @@ exports.updateAttendanceStatus = async (req, res) => {
     
     // If no record exists and status is not Absent, create one
     if (!attendance && status !== 'Absent') {
-      attendance = await Attendance.create({
+      attendance = new Attendance({
         internId,
         date: startDate,
+        checkInTime: new Date(),
         status: status.toLowerCase(),
-        checkInTime: status === 'Present' || status === 'Late' ? new Date() : null
+        signature: 'Admin marked attendance', // Default signature for admin-managed attendance
+        notes: notes || `Attendance marked by admin: ${req.user.name}`
       });
-    } 
-    // If record exists, update it
-    else if (attendance) {
-      attendance.status = status.toLowerCase();
       
-      // Update check-in time if not already set and status is Present or Late
-      if (!attendance.checkInTime && (status === 'Present' || status === 'Late')) {
-        attendance.checkInTime = new Date();
-      }
+      // Make signature optional for admin-managed attendance
+      attendance.markModified('signature');
+      await attendance.save();
+    } else if (!attendance && status === 'Absent') {
+      // For absent status, we don't need to create a record
+      return res.status(200).json({
+        status: 'success',
+        message: 'Intern marked as absent'
+      });
+    } else {
+      // Update existing record
+      attendance.status = status.toLowerCase();
+      if (notes) attendance.notes = notes;
       
       await attendance.save();
     }
-    // If no record and status is Absent, we don't need to create one
     
     res.status(200).json({
       status: 'success',
@@ -176,7 +182,7 @@ exports.updateAttendanceStatus = async (req, res) => {
  */
 exports.bulkUpdateAttendance = async (req, res) => {
   try {
-    const { date, status, department } = req.body;
+    const { date, status, department, notes } = req.body;
     
     if (!status || !['Present', 'Absent', 'Late', 'Excused'].includes(status)) {
       return res.status(400).json({
@@ -228,7 +234,9 @@ exports.bulkUpdateAttendance = async (req, res) => {
           internId: intern._id,
           date: startDate,
           status: status.toLowerCase(),
-          checkInTime: status === 'Present' || status === 'Late' ? new Date() : null
+          checkInTime: status === 'Present' || status === 'Late' ? new Date() : null,
+          signature: 'Admin marked attendance',
+          notes: notes || `Bulk attendance marked by admin: ${req.user.name}`
         });
       } 
       // If record exists, update it
@@ -238,6 +246,11 @@ exports.bulkUpdateAttendance = async (req, res) => {
         // Update check-in time if not already set and status is Present or Late
         if (!attendance.checkInTime && (status === 'Present' || status === 'Late')) {
           attendance.checkInTime = new Date();
+        }
+        
+        // Update notes if provided
+        if (notes) {
+          attendance.notes = notes;
         }
         
         await attendance.save();
