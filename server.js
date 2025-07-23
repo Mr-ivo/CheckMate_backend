@@ -17,24 +17,52 @@ const settingsRoutes = require('./src/routes/settings.routes');
 const app = express();
 
 // Middleware
+// Use more permissive CORS settings to allow mobile access
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps, curl requests, etc)
     if(!origin) return callback(null, true);
     
-    // List of allowed origins
+    // List of allowed origins - expanded to include mobile access
     const allowedOrigins = [
       'http://localhost:3000',
-      'https://check-mate-nine.vercel.app'
+      'https://check-mate-nine.vercel.app',
+      'https://check-mate-nine.vercel.app/',
+      'https://check-mate-nine.vercel.app:*',
+      'https://*.vercel.app',
+      'https://*.vercel.app:*',
+      'https://*.vercel.app/*',
+      'http://*.vercel.app',
+      'http://*.vercel.app:*',
+      'http://*.vercel.app/*'
     ];
     
-    if(allowedOrigins.indexOf(origin) === -1){
-      return callback(new Error('The CORS policy for this site does not allow access from the specified origin.'), false);
+    // Check if the origin matches any allowed origins
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      // Convert wildcard patterns to regex
+      if (allowedOrigin.includes('*')) {
+        const regexPattern = allowedOrigin
+          .replace(/\./g, '\\.')
+          .replace(/\*/g, '.*');
+        const regex = new RegExp(`^${regexPattern}$`);
+        return regex.test(origin);
+      }
+      return allowedOrigin === origin;
+    });
+    
+    if (!isAllowed) {
+      console.warn(`CORS blocked request from origin: ${origin}`);
+      // For now, allow all origins in production to troubleshoot mobile issues
+      return callback(null, true); // Allow all origins temporarily
+      // Uncomment below line to enforce CORS after debugging
+      // return callback(new Error('CORS policy does not allow access from this origin.'), false);
     }
     
     return callback(null, true);
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
