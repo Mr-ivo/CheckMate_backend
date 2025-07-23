@@ -476,3 +476,82 @@ exports.getAllDepartments = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Get weekly attendance percentage for an intern
+ * @route   GET /api/attendance/weekly/:internId
+ * @access  Private (Admin/Intern)
+ */
+exports.getWeeklyAttendancePercentage = async (req, res) => {
+  try {
+    const { internId } = req.params;
+    
+    // Calculate date range for the past week
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7); // Go back 7 days
+    startDate.setHours(0, 0, 0, 0);
+    
+    // Get attendance records for the past week
+    const attendanceRecords = await Attendance.find({
+      internId,
+      date: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    });
+    
+    // Count days in each status
+    let presentDays = 0;
+    let lateDays = 0;
+    let excusedDays = 0;
+    let absentDays = 0;
+    
+    attendanceRecords.forEach(record => {
+      switch(record.status.toLowerCase()) {
+        case 'present':
+          presentDays++;
+          break;
+        case 'late':
+          lateDays++;
+          break;
+        case 'excused':
+          excusedDays++;
+          break;
+        case 'absent':
+          absentDays++;
+          break;
+      }
+    });
+    
+    // Calculate total days in the week (should be 7, but we'll calculate it to be safe)
+    const totalDays = 7; // One week
+    
+    // Calculate attendance percentage according to the formula: (present + excused) / total * 100
+    const attendancePercentage = totalDays > 0 ? 
+      ((presentDays + excusedDays) / totalDays * 100).toFixed(2) : 0;
+    
+    // Return the data
+    res.status(200).json({
+      status: 'success',
+      data: {
+        weekStartDate: startDate,
+        weekEndDate: endDate,
+        presentDays,
+        lateDays,
+        excusedDays,
+        absentDays,
+        totalDays,
+        attendancePercentage: parseFloat(attendancePercentage)
+      }
+    });
+  } catch (error) {
+    console.error('Error calculating weekly attendance:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};

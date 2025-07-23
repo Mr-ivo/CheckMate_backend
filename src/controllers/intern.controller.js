@@ -150,9 +150,40 @@ exports.getIntern = async (req, res) => {
  */
 exports.updateIntern = async (req, res) => {
   try {
+    // First, find the existing intern to get the userId
+    const existingIntern = await Intern.findById(req.params.id);
+    
+    if (!existingIntern) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Intern not found'
+      });
+    }
+    
+    // Extract fields that should be updated in the User model
+    const { name, email, password, ...internFields } = req.body;
+    
+    // If name, email or password are provided, update the User document
+    if (name || email || password) {
+      console.log('Updating User fields:', { name, email, password: password ? '[FILTERED]' : undefined });
+      
+      const userUpdateFields = {};
+      if (name) userUpdateFields.name = name;
+      if (email) userUpdateFields.email = email;
+      if (password) userUpdateFields.password = password;
+      
+      // Update the User document
+      await User.findByIdAndUpdate(
+        existingIntern.userId,
+        userUpdateFields,
+        { runValidators: true }
+      );
+    }
+    
+    // Update the Intern document with remaining fields
     const intern = await Intern.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      internFields,
       {
         new: true,
         runValidators: true
@@ -161,18 +192,12 @@ exports.updateIntern = async (req, res) => {
     .populate('userId', 'name email profileImage')
     .populate('supervisor', 'name email');
     
-    if (!intern) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Intern not found'
-      });
-    }
-    
     res.status(200).json({
       status: 'success',
       data: { intern }
     });
   } catch (error) {
+    console.error('Error updating intern:', error);
     res.status(500).json({
       status: 'error',
       message: error.message

@@ -16,7 +16,8 @@ const {
   bulkUpdateAttendance,
   saveAttendanceData,
   exportAttendanceData,
-  getAllDepartments
+  getAllDepartments,
+  getWeeklyAttendancePercentage
 } = require('../controllers/attendancePage.controller');
 
 const { protect, authorize } = require('../middleware/auth.middleware');
@@ -44,5 +45,6 @@ router.get('/departments', authorize('admin', 'supervisor'), getAllDepartments);
 // Intern-specific routes
 router.get('/intern/:internId', getInternAttendance);
 router.get('/intern/:internId/today', getInternTodayStatus);
+router.get('/weekly/:internId', getWeeklyAttendancePercentage);
 
 module.exports = router;
