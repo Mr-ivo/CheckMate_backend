@@ -76,7 +76,9 @@ exports.createIntern = async (req, res) => {
       internId, 
       department, 
       startDate, 
-      supervisor 
+      supervisor,
+      phone,
+      internEmail // Direct intern email (can be different from user email)
     } = req.body;
     
     // First, create a user account for the intern
@@ -91,6 +93,8 @@ exports.createIntern = async (req, res) => {
     const intern = await Intern.create({
       userId: user._id,
       internId,
+      email: internEmail || email, // Use intern-specific email or fallback to user email
+      phone,
       department,
       startDate: startDate || new Date(),
       supervisor,
@@ -160,8 +164,8 @@ exports.updateIntern = async (req, res) => {
       });
     }
     
-    // Extract fields that should be updated in the User model
-    const { name, email, password, ...internFields } = req.body;
+    // Extract fields that should be updated in the User model vs Intern model
+    const { name, email, password, internEmail, phone, ...internFields } = req.body;
     
     // If name, email or password are provided, update the User document
     if (name || email || password) {
@@ -179,6 +183,10 @@ exports.updateIntern = async (req, res) => {
         { runValidators: true }
       );
     }
+    
+    // Add intern-specific email and phone to intern fields
+    if (internEmail !== undefined) internFields.email = internEmail;
+    if (phone !== undefined) internFields.phone = phone;
     
     // Update the Intern document with remaining fields
     const intern = await Intern.findByIdAndUpdate(

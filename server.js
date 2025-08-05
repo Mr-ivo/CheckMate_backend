@@ -12,6 +12,7 @@ const internRoutes = require('./src/routes/intern.routes');
 const attendanceRoutes = require('./src/routes/attendance.routes');
 const reportRoutes = require('./src/routes/report.routes');
 const settingsRoutes = require('./src/routes/settings.routes');
+const emailRoutes = require('./src/routes/email.routes');
 
 // Initialize express app
 const app = express();
@@ -78,6 +79,7 @@ app.use('/api/interns', internRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/email', emailRoutes);
 
 // Base route
 app.get('/', (req, res) => {

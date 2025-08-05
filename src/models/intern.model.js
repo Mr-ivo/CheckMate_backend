@@ -12,6 +12,16 @@ const internSchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
+  email: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email address']
+  },
+  phone: {
+    type: String,
+    trim: true
+  },
   department: {
     type: String,
     required: [true, 'Department is required'],
