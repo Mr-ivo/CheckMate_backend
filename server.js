@@ -13,6 +13,11 @@ const attendanceRoutes = require('./src/routes/attendance.routes');
 const reportRoutes = require('./src/routes/report.routes');
 const settingsRoutes = require('./src/routes/settings.routes');
 const emailRoutes = require('./src/routes/email.routes');
+// SMS routes removed for security and deployment reasons
+const notificationRoutes = require('./src/routes/notification.routes');
+const notificationManagementRoutes = require('./src/routes/notification.management.routes');
+const testRoutes = require('./src/routes/test.routes');
+const NotificationScheduler = require('./src/services/notification.scheduler');
 
 // Initialize express app
 const app = express();
@@ -80,6 +85,10 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/email', emailRoutes);
+// SMS routes removed for security and deployment reasons
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/notifications', notificationManagementRoutes);
+app.use('/api/test', testRoutes);
 
 // Base route
 app.get('/', (req, res) => {
@@ -107,4 +116,12 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  
+  // Start automatic notification scheduler
+  try {
+    NotificationScheduler.start();
+    console.log('✅ Automatic notification system started successfully!');
+  } catch (error) {
+    console.error('❌ Failed to start notification scheduler:', error);
+  }
 });

@@ -1,6 +1,7 @@
 const User = require('../models/user.model');
 const Intern = require('../models/intern.model');
 const Attendance = require('../models/attendance.model');
+const { NotificationService } = require('./notification.controller');
 
 /**
  * @desc    Get all interns
@@ -104,6 +105,26 @@ exports.createIntern = async (req, res) => {
     const populatedIntern = await Intern.findById(intern._id)
       .populate('userId', 'name email profileImage')
       .populate('supervisor', 'name email');
+    
+    // Create automatic notification for new intern
+    try {
+      await NotificationService.createInternNotification(
+        'new_intern',
+        {
+          _id: intern._id,
+          name: name,
+          department: department
+        },
+        {
+          startDate: startDate || new Date(),
+          supervisorName: populatedIntern.supervisor?.name || 'Not assigned'
+        }
+      );
+      console.log(`Created new intern notification for ${name}`);
+    } catch (notificationError) {
+      console.error('Failed to create new intern notification:', notificationError);
+      // Don't fail the intern creation if notification creation fails
+    }
     
     res.status(201).json({
       status: 'success',

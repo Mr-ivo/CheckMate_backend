@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+// SMS functionality has been removed for security and deployment reasons
 
 /**
  * Email Controller for handling email notifications
@@ -320,6 +321,8 @@ exports.sendAbsenteeEmail = async (req, res) => {
           };
 
           const emailResult = await emailTransporter.sendMail(mailOptions);
+          
+          // SMS functionality removed for security and deployment reasons
           
           results.push({
             intern: intern.name || intern.user?.name || 'Unknown',

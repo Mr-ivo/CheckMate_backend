@@ -1,6 +1,7 @@
 const Attendance = require('../models/attendance.model');
 const Intern = require('../models/intern.model');
 const Department = require('../models/department.model');
+const { NotificationService } = require('./notification.controller');
 
 /**
  * @desc    Get attendance records for a specific date
@@ -91,6 +92,11 @@ exports.getAttendanceByDate = async (req, res) => {
  */
 exports.updateAttendanceStatus = async (req, res) => {
   try {
+    console.log('🔍 DEBUG: updateAttendanceStatus called');
+    console.log('📝 Request params:', req.params);
+    console.log('📝 Request body:', req.body);
+    console.log('👤 Request user:', req.user?.name || 'No user');
+    
     const { internId } = req.params;
     const { status, date, notes } = req.body;
     
@@ -108,8 +114,8 @@ exports.updateAttendanceStatus = async (req, res) => {
       });
     }
     
-    // Find the intern
-    const intern = await Intern.findById(internId);
+    // Find the intern with populated user data
+    const intern = await Intern.findById(internId).populate('userId', 'name email');
     if (!intern) {
       return res.status(404).json({
         status: 'fail',
@@ -149,6 +155,34 @@ exports.updateAttendanceStatus = async (req, res) => {
       await attendance.save();
     } else if (!attendance && status === 'Absent') {
       // For absent status, we don't need to create a record
+      
+      // Create immediate notification for manual absent marking
+      console.log('🚨 DEBUG: About to create absent notification');
+      console.log('👤 Intern data:', {
+        id: intern._id,
+        name: intern.userId?.name || intern.name,
+        userId: intern.userId,
+        department: intern.department
+      });
+      
+      try {
+        console.log('📞 Calling NotificationService.createAttendanceNotification...');
+        const notifications = await NotificationService.createAttendanceNotification(
+          'absent',
+          intern,
+          {
+            date: startDate,
+            markedBy: req.user?.name || 'Admin',
+            isManual: true
+          }
+        );
+        console.log(`✅ Created absent notification successfully:`, notifications?.length || 0, 'notifications');
+        console.log('📋 Notification details:', notifications);
+      } catch (notificationError) {
+        console.error('❌ Failed to create absent notification:', notificationError);
+        console.error('🔍 Error stack:', notificationError.stack);
+      }
+      
       return res.status(200).json({
         status: 'success',
         message: 'Intern marked as absent'
@@ -159,6 +193,52 @@ exports.updateAttendanceStatus = async (req, res) => {
       if (notes) attendance.notes = notes;
       
       await attendance.save();
+    }
+    
+    // Create immediate notification for manual attendance status changes
+    try {
+      let notificationType;
+      switch (status.toLowerCase()) {
+        case 'late':
+          notificationType = 'late';
+          break;
+        case 'present':
+          notificationType = 'present';
+          break;
+        case 'excused':
+          notificationType = 'excused';
+          break;
+        default:
+          notificationType = null;
+      }
+      
+      if (notificationType) {
+        console.log(`🚨 DEBUG: About to create ${notificationType} notification`);
+        console.log('👤 Intern data:', {
+          id: intern._id,
+          name: intern.userId?.name || intern.name,
+          userId: intern.userId,
+          department: intern.department
+        });
+        
+        const notifications = await NotificationService.createAttendanceNotification(
+          notificationType,
+          intern,
+          {
+            date: startDate,
+            markedBy: req.user?.name || 'Admin',
+            isManual: true,
+            notes: notes
+          }
+        );
+        console.log(`✅ Created ${notificationType} notification successfully:`, notifications?.length || 0, 'notifications');
+        console.log('📋 Notification details:', notifications);
+      } else {
+        console.log('⚠️ No notification type determined for status:', status);
+      }
+    } catch (notificationError) {
+      console.error('❌ Failed to create attendance notification:', notificationError);
+      console.error('🔍 Error stack:', notificationError.stack);
     }
     
     res.status(200).json({
@@ -205,9 +285,9 @@ exports.bulkUpdateAttendance = async (req, res) => {
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + 1);
     
-    // Get all interns based on department filter
+    // Get all interns based on department filter with populated user data
     const departmentFilter = department ? { department } : {};
-    const interns = await Intern.find({ status: 'active', ...departmentFilter });
+    const interns = await Intern.find({ status: 'active', ...departmentFilter }).populate('userId', 'name email');
     
     if (interns.length === 0) {
       return res.status(404).json({
@@ -258,6 +338,44 @@ exports.bulkUpdateAttendance = async (req, res) => {
       
       if (attendance) {
         results.push(attendance);
+        
+        // Create immediate notification for each bulk attendance update
+        try {
+          let notificationType;
+          switch (status.toLowerCase()) {
+            case 'late':
+              notificationType = 'late';
+              break;
+            case 'present':
+              notificationType = 'present';
+              break;
+            case 'absent':
+              notificationType = 'absent';
+              break;
+            case 'excused':
+              notificationType = 'excused';
+              break;
+            default:
+              notificationType = null;
+          }
+          
+          if (notificationType) {
+            await NotificationService.createAttendanceNotification(
+              notificationType,
+              intern,
+              {
+                date: startDate,
+                markedBy: req.user?.name || 'Admin',
+                isManual: true,
+                isBulk: true,
+                notes: notes
+              }
+            );
+            console.log(`✅ Created bulk ${notificationType} notification for ${intern.name}`);
+          }
+        } catch (notificationError) {
+          console.error(`Failed to create bulk notification for ${intern.name}:`, notificationError);
+        }
       }
     }
     

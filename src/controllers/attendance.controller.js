@@ -1,5 +1,6 @@
 const Attendance = require('../models/attendance.model');
 const Intern = require('../models/intern.model');
+const { NotificationService } = require('./notification.controller');
 
 /**
  * @desc    Record attendance check-in (requires signature for interns)
@@ -59,6 +60,27 @@ exports.checkIn = async (req, res) => {
       signature,
       location: location || undefined
     });
+    
+    // Create notification for late check-in
+    if (status === 'late') {
+      try {
+        await NotificationService.createAttendanceNotification(
+          'late_checkin',
+          intern,
+          {
+            checkInTime: checkInTime.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+            date: today.toISOString().split('T')[0]
+          }
+        );
+        console.log(`Created late check-in notification for ${intern.name}`);
+      } catch (notificationError) {
+        console.error('Failed to create late check-in notification:', notificationError);
+        // Don't fail the check-in if notification creation fails
+      }
+    }
     
     res.status(201).json({
       status: 'success',
