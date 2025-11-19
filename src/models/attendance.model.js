@@ -24,11 +24,8 @@ const attendanceSchema = new mongoose.Schema({
     default: 'present'
   },
   signature: {
-    type: String,  // Store digital signature as base64 string
-    required: function() {
-      // Only require signature for self check-in, not for admin-managed attendance
-      return !this.notes || !this.notes.includes('Admin marked attendance');
-    }
+    type: String,  // Store digital signature as base64 string (optional)
+    required: false
   },
   location: {
     latitude: {

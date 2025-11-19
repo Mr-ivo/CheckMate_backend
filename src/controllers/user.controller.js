@@ -149,3 +149,179 @@ exports.deleteUser = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Approve pending user
+ * @route   POST /api/users/:id/approve
+ * @access  Private/Admin
+ */
+exports.approveUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'User not found'
+      });
+    }
+    
+    // Activate user
+    user.isActive = true;
+    await user.save();
+    
+    // Update intern status
+    const Intern = require('../models/intern.model');
+    await Intern.findOneAndUpdate(
+      { userId: user._id },
+      { status: 'active' }
+    );
+    
+    console.log(`✅ User approved: ${user.email}`);
+    
+    // Send approval email notification
+    try {
+      const emailController = require('./email.controller');
+      await emailController.sendApprovalEmail({
+        name: user.name,
+        email: user.email
+      });
+      console.log(`📧 Approval email sent to ${user.email}`);
+    } catch (emailError) {
+      console.error('Failed to send approval email:', emailError);
+      // Don't fail the approval if email fails
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'User approved successfully',
+      data: { user }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Reject pending user
+ * @route   POST /api/users/:id/reject
+ * @access  Private/Admin
+ */
+exports.rejectUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'User not found'
+      });
+    }
+    
+    // Delete intern record
+    const Intern = require('../models/intern.model');
+    await Intern.findOneAndDelete({ userId: user._id });
+    
+    // Delete user
+    await User.findByIdAndDelete(req.params.id);
+    
+    console.log(`❌ User rejected and removed: ${user.email}`);
+    
+    // TODO: Send rejection email notification
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'User rejected and removed'
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Deactivate user
+ * @route   POST /api/users/:id/deactivate
+ * @access  Private/Admin
+ */
+exports.deactivateUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'User not found'
+      });
+    }
+    
+    user.isActive = false;
+    await user.save();
+    
+    // Update intern status
+    const Intern = require('../models/intern.model');
+    await Intern.findOneAndUpdate(
+      { userId: user._id },
+      { status: 'inactive' }
+    );
+    
+    console.log(`⏸️ User deactivated: ${user.email}`);
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'User deactivated successfully',
+      data: { user }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Activate user
+ * @route   POST /api/users/:id/activate
+ * @access  Private/Admin
+ */
+exports.activateUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'User not found'
+      });
+    }
+    
+    user.isActive = true;
+    await user.save();
+    
+    // Update intern status
+    const Intern = require('../models/intern.model');
+    await Intern.findOneAndUpdate(
+      { userId: user._id },
+      { status: 'active' }
+    );
+    
+    console.log(`▶️ User activated: ${user.email}`);
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'User activated successfully',
+      data: { user }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};

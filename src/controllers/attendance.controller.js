@@ -1,5 +1,6 @@
 const Attendance = require('../models/attendance.model');
 const Intern = require('../models/intern.model');
+const Geofence = require('../models/geofence.model');
 const { NotificationService } = require('./notification.controller');
 
 /**
@@ -11,13 +12,102 @@ exports.checkIn = async (req, res) => {
   try {
     const { internId, signature, location } = req.body;
     
-    // Verify intern exists
-    const intern = await Intern.findById(internId);
+    // Get the logged-in user from the request (set by auth middleware)
+    const userId = req.user._id;
+    
+    // Find existing intern record for the logged-in user
+    let intern = await Intern.findOne({ userId }).populate('userId', 'name email');
+    
+    // If no intern record exists, create one automatically
     if (!intern) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Intern not found'
+      console.log(`🆕 Creating intern record for user: ${req.user.email}`);
+      intern = await Intern.create({
+        userId: userId,
+        name: req.user.name,
+        email: req.user.email,
+        employeeId: `EMP-${Date.now()}`, // Auto-generate employee ID
+        department: req.user.department || 'General',
+        position: req.user.role || 'Staff',
+        startDate: new Date(),
+        status: 'active',
+        contactNumber: req.user.phone || 'N/A',
+        address: 'N/A'
       });
+      
+      // Populate userId for consistency
+      intern = await Intern.findById(intern._id).populate('userId', 'name email');
+      console.log(`✅ Intern record created: ${intern._id}`);
+    }
+    
+    // Verify intern belongs to logged-in user (handle both populated and non-populated userId)
+    const internUserId = intern.userId._id ? intern.userId._id.toString() : intern.userId.toString();
+    if (internUserId !== userId.toString()) {
+      return res.status(403).json({
+        status: 'fail',
+        message: 'You can only check in for yourself'
+      });
+    }
+    
+    // Validate location if provided (GEOFENCING)
+    if (location && location.latitude && location.longitude) {
+      const { latitude, longitude } = location;
+      
+      console.log(`📍 Validating location: lat=${latitude}, lon=${longitude}, dept=${intern.department}`);
+      
+      // Find valid geofence for this location and department
+      const validGeofence = await Geofence.findValidGeofence(
+        latitude,
+        longitude,
+        intern.department
+      );
+      
+      if (!validGeofence) {
+        console.log('⚠️ No valid geofence found');
+        // Check if there are any nearby geofences
+        const nearbyGeofences = await Geofence.findNearby(latitude, longitude, 500);
+        console.log(`📍 Found ${nearbyGeofences.length} nearby geofences within 500m`);
+        
+        if (nearbyGeofences.length === 0) {
+          return res.status(403).json({
+            status: 'fail',
+            message: 'No workplace location found nearby. You must be at the workplace to check in.',
+            code: 'NO_GEOFENCE_NEARBY'
+          });
+        }
+        
+        // Get validation details from nearest geofence
+        const nearest = nearbyGeofences[0];
+        const validation = nearest.validateLocation(latitude, longitude);
+        
+        console.log(`❌ Validation failed for ${nearest.name}:`);
+        console.log(`   Distance: ${Math.round(validation.distance)}m (max: ${nearest.radius}m)`);
+        console.log(`   Within hours: ${validation.withinAllowedHours} (${nearest.allowedHours.start} - ${nearest.allowedHours.end})`);
+        console.log(`   Allowed day: ${validation.allowedDay} (allowed days: ${nearest.allowedDays.join(', ')})`);
+        console.log(`   Current time: ${new Date().toLocaleTimeString()}`);
+        console.log(`   Current day: ${new Date().getDay()}`);
+        
+        return res.status(403).json({
+          status: 'fail',
+          message: validation.message,
+          code: 'GEOFENCE_VALIDATION_FAILED',
+          details: {
+            distance: Math.round(validation.distance),
+            requiredRadius: nearest.radius,
+            withinAllowedHours: validation.withinAllowedHours,
+            allowedDay: validation.allowedDay,
+            locationName: nearest.name,
+            allowedHours: nearest.allowedHours,
+            allowedDays: nearest.allowedDays,
+            currentTime: new Date().toLocaleTimeString(),
+            currentDay: new Date().getDay()
+          }
+        });
+      }
+      
+      console.log(`✅ Location validated for ${intern.userId?.name || intern.name} at ${validGeofence.geofence.name}`);
+    } else {
+      // No location provided - warn but allow (for backward compatibility)
+      console.log(`⚠️ No location provided for check-in: ${intern.userId?.name || intern.name}`);
     }
     
     // Check if already checked in today
@@ -25,7 +115,7 @@ exports.checkIn = async (req, res) => {
     today.setHours(0, 0, 0, 0); // Set to beginning of day
     
     const existingAttendance = await Attendance.findOne({
-      internId,
+      internId: intern._id,
       date: {
         $gte: today,
         $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) // Next day
@@ -53,7 +143,7 @@ exports.checkIn = async (req, res) => {
     }
     
     const attendance = await Attendance.create({
-      internId,
+      internId: intern._id,
       date: today,
       checkInTime,
       status,
@@ -103,13 +193,26 @@ exports.checkOut = async (req, res) => {
   try {
     const { internId, signature, location } = req.body;
     
+    // Get the logged-in user from the request
+    const userId = req.user._id;
+    
+    // Find the intern record for this user
+    let intern = internId ? await Intern.findById(internId) : await Intern.findOne({ userId });
+    
+    if (!intern) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'No check-in record found. Please check in first.'
+      });
+    }
+    
     // Get today's date
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Set to beginning of day
     
     // Find today's attendance record
     const attendance = await Attendance.findOne({
-      internId,
+      internId: intern._id,
       date: {
         $gte: today,
         $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) // Next day

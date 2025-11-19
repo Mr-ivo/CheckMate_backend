@@ -3,7 +3,11 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
 const connectDB = require('./src/config/database');
+const { generalLimiter } = require('./src/middleware/rateLimiter.middleware');
+const { auditLogMiddleware } = require('./src/middleware/auditLog.middleware');
 
 // Import routes
 const authRoutes = require('./src/routes/auth.routes');
@@ -17,10 +21,25 @@ const emailRoutes = require('./src/routes/email.routes');
 const notificationRoutes = require('./src/routes/notification.routes');
 const notificationManagementRoutes = require('./src/routes/notification.management.routes');
 const testRoutes = require('./src/routes/test.routes');
+const auditLogRoutes = require('./src/routes/auditLog.routes');
+const sessionRoutes = require('./src/routes/session.routes');
+const geofenceRoutes = require('./src/routes/geofence.routes');
+const twoFactorRoutes = require('./src/routes/twoFactor.routes');
+const webauthnRoutes = require('./src/routes/webauthn.routes');
 const NotificationScheduler = require('./src/services/notification.scheduler');
 
 // Initialize express app
 const app = express();
+
+// Security Middleware
+// Helmet - Set security HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for API
+  crossOriginEmbedderPolicy: false
+}));
+
+// Data sanitization against NoSQL injection
+app.use(mongoSanitize());
 
 // Middleware
 // Use more permissive CORS settings to allow mobile access
@@ -32,6 +51,7 @@ app.use(cors({
     // List of allowed origins - expanded to include mobile access
     const allowedOrigins = [
       'http://localhost:3000',
+      'http://localhost:3001', // Additional local development port
       'https://check-mate-nine.vercel.app',
       'https://check-mate-nine.vercel.app/',
       'https://check-mate-nine.vercel.app:*',
@@ -74,6 +94,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev')); // Logging middleware
 
+// Rate limiting - Apply to all routes
+app.use(generalLimiter);
+
+// Audit logging - Track all requests
+app.use(auditLogMiddleware);
+
 // Connect to MongoDB
 connectDB();
 
@@ -89,6 +115,11 @@ app.use('/api/email', emailRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/notifications', notificationManagementRoutes);
 app.use('/api/test', testRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/sessions', sessionRoutes);
+app.use('/api/geofences', geofenceRoutes);
+app.use('/api/2fa', twoFactorRoutes);
+app.use('/api/webauthn', webauthnRoutes);
 
 // Base route
 app.get('/', (req, res) => {

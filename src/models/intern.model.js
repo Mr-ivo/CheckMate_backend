@@ -8,8 +8,30 @@ const internSchema = new mongoose.Schema({
   },
   internId: {
     type: String,
-    required: [true, 'Intern ID is required'],
+    trim: true,
+    sparse: true // Allow null/undefined, no unique constraint
+  },
+  employeeId: {
+    type: String,
+    required: [true, 'Employee ID is required'],
     unique: true,
+    trim: true
+  },
+  name: {
+    type: String,
+    required: [true, 'Name is required'],
+    trim: true
+  },
+  position: {
+    type: String,
+    trim: true
+  },
+  contactNumber: {
+    type: String,
+    trim: true
+  },
+  address: {
+    type: String,
     trim: true
   },
   email: {
@@ -40,7 +62,7 @@ const internSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'completed', 'terminated'],
+    enum: ['pending', 'active', 'inactive', 'completed', 'terminated'],
     default: 'active'
   },
   attendanceRate: {

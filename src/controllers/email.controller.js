@@ -403,6 +403,171 @@ exports.sendAbsenteeEmail = async (req, res) => {
 };
 
 /**
+ * @desc    Send account approval email
+ * @param   {Object} userData - User data (name, email)
+ * @returns {Promise} - Email send result
+ */
+exports.sendApprovalEmail = async (userData) => {
+  try {
+    const emailTransporter = initializeTransporter();
+    
+    const approvalEmailTemplate = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Account Approved - CheckMate</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          }
+          .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+          }
+          .content {
+            padding: 40px 30px;
+          }
+          .success-icon {
+            text-align: center;
+            font-size: 60px;
+            margin-bottom: 20px;
+          }
+          .message {
+            font-size: 16px;
+            color: #555;
+            margin-bottom: 20px;
+          }
+          .info-box {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+          }
+          .button {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+          }
+          .footer {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✅ Account Approved!</h1>
+          </div>
+          
+          <div class="content">
+            <div class="success-icon">🎉</div>
+            
+            <p class="message">
+              <strong>Hello ${userData.name},</strong>
+            </p>
+            
+            <p class="message">
+              Great news! Your CheckMate account has been approved by the administrator. 
+              You can now log in and start using the attendance management system.
+            </p>
+            
+            <div class="info-box">
+              <strong>📧 Your Login Email:</strong> ${userData.email}<br>
+              <strong>🔐 Password:</strong> The password you created during registration
+            </div>
+            
+            <p class="message">
+              <strong>What you can do now:</strong>
+            </p>
+            <ul>
+              <li>✅ Log in to your account</li>
+              <li>✅ Check in and check out daily</li>
+              <li>✅ View your attendance history</li>
+              <li>✅ Update your profile</li>
+              <li>✅ Enable two-factor authentication for extra security</li>
+            </ul>
+            
+            <center>
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" class="button">
+                Login to CheckMate
+              </a>
+            </center>
+            
+            <p class="message">
+              If you have any questions or need assistance, please don't hesitate to contact your administrator.
+            </p>
+            
+            <p class="message">
+              <strong>Welcome to CheckMate!</strong><br>
+              The Attendance Management Team
+            </p>
+          </div>
+          
+          <div class="footer">
+            <p><strong>CheckMate System</strong></p>
+            <p>Automated Attendance Management</p>
+            <p>This is an automated message from CheckMate.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const mailOptions = {
+      from: {
+        name: 'CheckMate',
+        address: process.env.EMAIL_USER
+      },
+      to: userData.email,
+      subject: '✅ Your CheckMate Account Has Been Approved!',
+      html: approvalEmailTemplate
+    };
+    
+    const result = await emailTransporter.sendMail(mailOptions);
+    console.log(`✅ Approval email sent to ${userData.email}:`, result.messageId);
+    
+    return {
+      success: true,
+      messageId: result.messageId
+    };
+  } catch (error) {
+    console.error('Error sending approval email:', error);
+    throw error;
+  }
+};
+
+/**
  * @desc    Test email configuration
  * @route   GET /api/email/test
  * @access  Private

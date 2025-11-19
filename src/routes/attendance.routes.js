@@ -21,13 +21,14 @@ const {
 } = require('../controllers/attendancePage.controller');
 
 const { protect, authorize } = require('../middleware/auth.middleware');
+const { attendanceLimiter } = require('../middleware/rateLimiter.middleware');
 
 // All routes are protected
 router.use(protect);
 
-// Routes for all authenticated users
-router.post('/check-in', checkIn);
-router.post('/check-out', checkOut);
+// Routes for all authenticated users - with rate limiting
+router.post('/check-in', attendanceLimiter, checkIn);
+router.post('/check-out', attendanceLimiter, checkOut);
 
 // Routes for viewing attendance (admin/supervisor)
 router.get('/', authorize('admin', 'supervisor'), getAttendanceRecords);
@@ -35,12 +36,12 @@ router.get('/today', authorize('admin', 'supervisor'), getTodayAttendance);
 router.get('/stats', authorize('admin', 'supervisor'), getAttendanceStats);
 
 // New routes for attendance management
-router.get('/date/:date', authorize('admin', 'supervisor'), getAttendanceByDate);
+router.get('/date/:date', getAttendanceByDate); // Allow all authenticated users to view
 router.patch('/:internId', authorize('admin', 'supervisor'), updateAttendanceStatus);
 router.post('/bulk-update', authorize('admin', 'supervisor'), bulkUpdateAttendance);
 router.post('/save', authorize('admin', 'supervisor'), saveAttendanceData);
 router.get('/export', authorize('admin', 'supervisor'), exportAttendanceData);
-router.get('/departments', authorize('admin', 'supervisor'), getAllDepartments);
+router.get('/departments', getAllDepartments); // Allow all authenticated users to view
 
 // Intern-specific routes
 router.get('/intern/:internId', getInternAttendance);

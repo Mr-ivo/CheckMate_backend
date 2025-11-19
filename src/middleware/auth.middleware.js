@@ -1,7 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
+const Session = require('../models/session.model');
+const TokenBlacklist = require('../models/tokenBlacklist.model');
 
-// Protect routes - verify token
+// Protect routes - verify token with session and blacklist check
 exports.protect = async (req, res, next) => {
   let token;
   
@@ -23,6 +25,15 @@ exports.protect = async (req, res, next) => {
   }
   
   try {
+    // Check if token is blacklisted
+    const isBlacklisted = await TokenBlacklist.isBlacklisted(token);
+    if (isBlacklisted) {
+      return res.status(401).json({
+        status: 'fail',
+        message: 'Token has been invalidated. Please login again.'
+      });
+    }
+    
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
@@ -36,10 +47,34 @@ exports.protect = async (req, res, next) => {
       });
     }
     
-    // Add user to request object
+    // Check if user account is active
+    if (!user.isActive) {
+      return res.status(401).json({
+        status: 'fail',
+        message: 'Your account has been deactivated'
+      });
+    }
+    
+    // Validate session (optional but recommended)
+    const session = await Session.validateSession(token);
+    if (!session) {
+      // Session expired or doesn't exist - create warning but allow access
+      console.log(`⚠️ No active session found for token, but token is valid`);
+    }
+    
+    // Add user and token to request object
     req.user = user;
+    req.token = token;
     next();
   } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        status: 'fail',
+        message: 'Token has expired. Please login again.',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
+    
     return res.status(401).json({
       status: 'fail',
       message: 'Not authorized to access this route'

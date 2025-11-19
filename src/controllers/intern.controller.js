@@ -4,6 +4,36 @@ const Attendance = require('../models/attendance.model');
 const { NotificationService } = require('./notification.controller');
 
 /**
+ * @desc    Get intern by user ID
+ * @route   GET /api/interns/user/:userId
+ * @access  Private
+ */
+exports.getInternByUserId = async (req, res) => {
+  try {
+    const intern = await Intern.findOne({ userId: req.params.userId })
+      .populate('userId', 'name email profileImage')
+      .populate('supervisor', 'name email');
+    
+    if (!intern) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Intern record not found for this user'
+      });
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: { intern }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
+/**
  * @desc    Get all interns
  * @route   GET /api/interns
  * @access  Private

@@ -6,7 +6,8 @@ const {
   getIntern, 
   updateIntern, 
   deleteIntern,
-  getInternAttendanceStats
+  getInternAttendanceStats,
+  getInternByUserId
 } = require('../controllers/intern.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 
@@ -15,6 +16,7 @@ router.use(protect);
 
 // Routes accessible by all authenticated users
 router.get('/', getInterns);
+router.get('/user/:userId', getInternByUserId); // Get intern by user ID
 router.get('/:id', getIntern);
 router.get('/:id/attendance-stats', getInternAttendanceStats);
 
