@@ -2,30 +2,35 @@ const TwoFactor = require('../models/twoFactor.model');
 const User = require('../models/user.model');
 const nodemailer = require('nodemailer');
 
-// Initialize email transporter with better configuration
+// Initialize email transporter with SSL (port 465) for better compatibility with Render
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // Use STARTTLS
+  port: 465,
+  secure: true, // Use SSL
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD
   },
-  tls: {
-    rejectUnauthorized: false // Allow self-signed certificates
-  },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
   debug: true, // Enable debug output
   logger: true // Log to console
 });
 
-// Verify transporter configuration on startup
-transporter.verify(function(error, success) {
-  if (error) {
-    console.error('❌ Email transporter verification failed:', error);
-  } else {
-    console.log('✅ Email server is ready to send messages');
+// Verify transporter configuration on startup (with timeout)
+const verifyEmail = async () => {
+  try {
+    await transporter.verify();
+    console.log('✅ Email server is ready to send messages (SSL port 465)');
+  } catch (error) {
+    console.error('❌ Email transporter verification failed:', error.message);
+    console.error('⚠️ Emails may not send. Check EMAIL_USER and EMAIL_PASSWORD in environment variables.');
   }
-});
+};
+
+// Run verification but don't block startup
+verifyEmail();
 
 /**
  * Send OTP via email
