@@ -31,6 +31,9 @@ const NotificationScheduler = require('./src/services/notification.scheduler');
 // Initialize express app
 const app = express();
 
+// Trust proxy - Required for Render and rate limiting
+app.set('trust proxy', 1);
+
 // Security Middleware
 // Helmet - Set security HTTP headers
 app.use(helmet({

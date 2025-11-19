@@ -1,36 +1,11 @@
 const TwoFactor = require('../models/twoFactor.model');
 const User = require('../models/user.model');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-// Initialize email transporter with SSL (port 465) for better compatibility with Render
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // Use SSL
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-  debug: true, // Enable debug output
-  logger: true // Log to console
-});
+// Initialize Resend for email sending (works on Render, free tier: 100 emails/day)
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Verify transporter configuration on startup (with timeout)
-const verifyEmail = async () => {
-  try {
-    await transporter.verify();
-    console.log('✅ Email server is ready to send messages (SSL port 465)');
-  } catch (error) {
-    console.error('❌ Email transporter verification failed:', error.message);
-    console.error('⚠️ Emails may not send. Check EMAIL_USER and EMAIL_PASSWORD in environment variables.');
-  }
-};
-
-// Run verification but don't block startup
-verifyEmail();
+console.log('📧 Email configured with Resend API');
 
 /**
  * Send OTP via email
@@ -40,11 +15,10 @@ verifyEmail();
  */
 const sendOTPEmail = async (email, code, userName) => {
   try {
-    console.log(`📧 Attempting to send OTP to ${email}`);
-    console.log(`📧 Email config: USER=${process.env.EMAIL_USER ? 'SET' : 'MISSING'}, PASS=${process.env.EMAIL_PASSWORD ? 'SET' : 'MISSING'}`);
+    console.log(`📧 Sending OTP to ${email} via Resend API`);
     
-    const mailOptions = {
-      from: `CheckMate Security <${process.env.EMAIL_USER}>`,
+    const { data, error } = await resend.emails.send({
+      from: 'CheckMate <onboarding@resend.dev>',
       to: email,
       subject: '🔐 Your CheckMate Verification Code',
       html: `
@@ -97,14 +71,17 @@ const sendOTPEmail = async (email, code, userName) => {
         </body>
         </html>
       `
-    };
+    });
     
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent successfully to ${email}. MessageId: ${info.messageId}`);
-    return info;
+    if (error) {
+      console.error(`❌ Resend API error:`, error);
+      throw new Error(`Email sending failed: ${error.message}`);
+    }
+    
+    console.log(`✅ Email sent successfully to ${email}. ID: ${data.id}`);
+    return data;
   } catch (error) {
     console.error(`❌ FAILED to send email to ${email}:`, error.message);
-    console.error(`❌ Error details:`, error);
     throw new Error(`Email sending failed: ${error.message}`);
   }
 };
