@@ -248,12 +248,19 @@ exports.sendOTP = async (req, res) => {
     const code = twoFactor.generateOTP();
     await twoFactor.save();
     
-    // Send OTP via email (use notificationEmail if available, otherwise use login email)
+    // Send OTP via email ASYNCHRONOUSLY (don't wait for it)
     const emailToSend = user.notificationEmail || user.email;
-    await sendOTPEmail(emailToSend, code, user.name);
+    sendOTPEmail(emailToSend, code, user.name)
+      .then(() => {
+        console.log(`✅ OTP email sent to ${emailToSend}`);
+      })
+      .catch((error) => {
+        console.error(`❌ Failed to send OTP email to ${emailToSend}:`, error.message);
+      });
     
-    console.log(`📧 OTP sent to ${emailToSend}: ${code}`); // Remove in production
+    console.log(`📧 OTP generated for ${emailToSend}: ${code}`); // Remove in production
     
+    // Respond immediately (don't wait for email)
     res.status(200).json({
       status: 'success',
       message: 'OTP has been sent to your email',

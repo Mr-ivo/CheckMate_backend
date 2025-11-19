@@ -172,6 +172,13 @@ exports.verifyRegistration = async (req, res) => {
     // Delete the challenge after verification (one-time use)
     await storedChallenge.deleteOne();
     
+    // Log full verification response for debugging
+    console.log('✅ Verification successful:', {
+      verified: verification.verified,
+      hasRegistrationInfo: !!verification.registrationInfo,
+      verificationKeys: Object.keys(verification)
+    });
+    
     if (!verification.verified) {
       return res.status(400).json({
         status: 'fail',
@@ -181,11 +188,36 @@ exports.verifyRegistration = async (req, res) => {
     
     const { registrationInfo } = verification;
     
-    // Validate registration info
-    if (!registrationInfo || !registrationInfo.credentialID || !registrationInfo.credentialPublicKey) {
+    // Log registration info for debugging
+    console.log('📝 Registration Info:', {
+      hasRegistrationInfo: !!registrationInfo,
+      keys: registrationInfo ? Object.keys(registrationInfo) : [],
+      credentialID: registrationInfo?.credentialID ? 'present' : 'missing',
+      credentialPublicKey: registrationInfo?.credentialPublicKey ? 'present' : 'missing'
+    });
+    
+    // Validate registration info with better error details
+    if (!registrationInfo) {
+      console.error('❌ No registration info in verification response');
       return res.status(400).json({
         status: 'fail',
-        message: 'Invalid registration info received'
+        message: 'Invalid registration response - no registration info'
+      });
+    }
+    
+    if (!registrationInfo.credentialID) {
+      console.error('❌ Missing credentialID in registration info');
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid registration response - missing credential ID'
+      });
+    }
+    
+    if (!registrationInfo.credentialPublicKey) {
+      console.error('❌ Missing credentialPublicKey in registration info');
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid registration response - missing public key'
       });
     }
     

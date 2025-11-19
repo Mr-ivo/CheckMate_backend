@@ -159,17 +159,35 @@ exports.login = async (req, res) => {
     const twoFactor = await TwoFactor.findByUserId(user._id);
     
     if (twoFactor && twoFactor.isEnabled) {
-      // 2FA is enabled - don't issue token yet
+      // 2FA is enabled - generate and send OTP automatically
       console.log(`🔐 2FA required for ${user.email}`);
+      
+      // Generate OTP code
+      const code = twoFactor.generateOTP();
+      await twoFactor.save();
+      
+      // Send OTP email asynchronously (don't wait)
+      const { sendOTPEmail } = require('./twoFactor.controller');
+      const emailToSend = user.notificationEmail || user.email;
+      
+      // Fire and forget - send email in background
+      if (sendOTPEmail) {
+        sendOTPEmail(emailToSend, code, user.name)
+          .then(() => console.log(`✅ OTP auto-sent to ${emailToSend}`))
+          .catch(err => console.error(`❌ OTP email failed:`, err.message));
+      }
+      
+      console.log(`📧 OTP generated for ${user.email}: ${code}`);
       
       return res.status(200).json({
         status: 'success',
-        message: 'Password verified. Please enter your 2FA code.',
+        message: 'Password verified. OTP sent to your email.',
         requires2FA: true,
         data: {
           userId: user._id,
           email: user.email,
-          method: twoFactor.method
+          method: twoFactor.method,
+          otpSent: true
         }
       });
     }
