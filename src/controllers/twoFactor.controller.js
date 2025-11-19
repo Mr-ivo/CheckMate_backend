@@ -2,12 +2,28 @@ const TwoFactor = require('../models/twoFactor.model');
 const User = require('../models/user.model');
 const nodemailer = require('nodemailer');
 
-// Initialize email transporter
+// Initialize email transporter with better configuration
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // Use STARTTLS
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false // Allow self-signed certificates
+  },
+  debug: true, // Enable debug output
+  logger: true // Log to console
+});
+
+// Verify transporter configuration on startup
+transporter.verify(function(error, success) {
+  if (error) {
+    console.error('❌ Email transporter verification failed:', error);
+  } else {
+    console.log('✅ Email server is ready to send messages');
   }
 });
 

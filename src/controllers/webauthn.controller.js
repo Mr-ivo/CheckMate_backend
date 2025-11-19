@@ -392,23 +392,29 @@ exports.generateAuthenticationOptions = async (req, res) => {
  */
 exports.verifyAuthentication = async (req, res) => {
   try {
+    console.log('🔐 Biometric authentication attempt');
     const { credential, email } = req.body;
     
     if (!credential || !email) {
+      console.error('❌ Missing credential or email');
       return res.status(400).json({
         status: 'fail',
         message: 'Credential and email are required'
       });
     }
     
+    console.log(`🔍 Looking up user: ${email}`);
     const user = await User.findOne({ email });
     
     if (!user) {
+      console.error(`❌ User not found: ${email}`);
       return res.status(401).json({
         status: 'fail',
         message: 'Authentication failed'
       });
     }
+    
+    console.log(`✅ User found: ${user.email}`);
     
     // Find the credential
     if (!credential.rawId && !credential.id) {
@@ -423,28 +429,44 @@ exports.verifyAuthentication = async (req, res) => {
     try {
       if (credential.rawId) {
         credentialId = Buffer.from(credential.rawId, 'base64').toString('base64');
+        console.log(`📝 Credential ID from rawId: ${credentialId.substring(0, 20)}...`);
       } else if (credential.id) {
         // ID might already be in base64 format
         credentialId = credential.id;
+        console.log(`📝 Credential ID from id: ${credentialId.substring(0, 20)}...`);
       }
     } catch (bufferError) {
-      console.error('Buffer conversion error:', bufferError);
+      console.error('❌ Buffer conversion error:', bufferError);
       return res.status(400).json({
         status: 'fail',
         message: 'Invalid credential format'
       });
     }
     
+    console.log(`🔍 Looking up credential in database...`);
     const dbCredential = await WebAuthnCredential.findByCredentialId(credentialId);
     
-    if (!dbCredential || dbCredential.userId.toString() !== user._id.toString()) {
+    if (!dbCredential) {
+      console.error(`❌ Credential not found in database`);
+      console.error(`❌ Searched for: ${credentialId}`);
       return res.status(401).json({
         status: 'fail',
-        message: 'Credential not found'
+        message: 'Credential not found. Please register this device first.'
       });
     }
     
+    if (dbCredential.userId.toString() !== user._id.toString()) {
+      console.error(`❌ Credential belongs to different user`);
+      return res.status(401).json({
+        status: 'fail',
+        message: 'Credential mismatch'
+      });
+    }
+    
+    console.log(`✅ Credential found in database`);
+    
     // Verify the challenge
+    console.log(`🔍 Verifying challenge...`);
     const challengeValid = await WebAuthnChallenge.verifyAndConsume(
       user._id,
       credential.response.clientDataJSON.challenge || credential.challenge,
@@ -452,11 +474,14 @@ exports.verifyAuthentication = async (req, res) => {
     );
     
     if (!challengeValid) {
+      console.error(`❌ Challenge verification failed or expired`);
       return res.status(400).json({
         status: 'fail',
-        message: 'Invalid or expired challenge'
+        message: 'Invalid or expired challenge. Please try again.'
       });
     }
+    
+    console.log(`✅ Challenge verified`);
     
     // Prepare authenticator data with safety checks
     let authenticatorData;
@@ -482,6 +507,10 @@ exports.verifyAuthentication = async (req, res) => {
     }
     
     // Verify the authentication response
+    console.log(`🔍 Verifying authentication response...`);
+    console.log(`📝 Expected origin: ${origin}`);
+    console.log(`📝 Expected RP ID: ${rpID}`);
+    
     let verification;
     try {
       verification = await verifyAuthenticationResponse({
@@ -494,6 +523,7 @@ exports.verifyAuthentication = async (req, res) => {
       });
     } catch (verifyError) {
       console.error('❌ Biometric verification error:', verifyError.message);
+      console.error('❌ Full error:', verifyError);
       return res.status(401).json({
         status: 'fail',
         message: `Verification failed: ${verifyError.message}`
@@ -507,6 +537,8 @@ exports.verifyAuthentication = async (req, res) => {
         message: 'Authentication verification failed. Please try again.'
       });
     }
+    
+    console.log(`✅ Authentication verified successfully!`);
     
     // Update credential counter and usage
     dbCredential.counter = verification.authenticationInfo.newCounter;
