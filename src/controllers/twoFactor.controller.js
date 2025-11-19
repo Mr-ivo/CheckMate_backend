@@ -458,3 +458,6 @@ exports.regenerateBackupCodes = async (req, res) => {
     });
   }
 };
+
+// Export helper function for use in other controllers
+module.exports.sendOTPEmail = sendOTPEmail;

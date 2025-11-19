@@ -431,19 +431,29 @@ exports.verifyAuthentication = async (req, res) => {
     }
     
     // Verify the authentication response
-    const verification = await verifyAuthenticationResponse({
-      response: credential,
-      expectedChallenge: credential.response.clientDataJSON.challenge || credential.challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-      authenticator: authenticatorData,
-      requireUserVerification: false
-    });
-    
-    if (!verification.verified) {
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: credential,
+        expectedChallenge: credential.response?.clientDataJSON?.challenge || credential.challenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+        authenticator: authenticatorData,
+        requireUserVerification: false
+      });
+    } catch (verifyError) {
+      console.error('❌ Biometric verification error:', verifyError.message);
       return res.status(401).json({
         status: 'fail',
-        message: 'Authentication verification failed'
+        message: `Verification failed: ${verifyError.message}`
+      });
+    }
+    
+    if (!verification.verified) {
+      console.error('❌ Verification not successful');
+      return res.status(401).json({
+        status: 'fail',
+        message: 'Authentication verification failed. Please try again.'
       });
     }
     
