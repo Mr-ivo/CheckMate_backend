@@ -188,44 +188,63 @@ exports.verifyRegistration = async (req, res) => {
     
     const { registrationInfo } = verification;
     
+    // Log FULL verification object for debugging
+    console.log('📝 Full Verification Object:', JSON.stringify(verification, null, 2));
+    
     // Log registration info for debugging
     console.log('📝 Registration Info:', {
       hasRegistrationInfo: !!registrationInfo,
       keys: registrationInfo ? Object.keys(registrationInfo) : [],
       credentialID: registrationInfo?.credentialID ? 'present' : 'missing',
-      credentialPublicKey: registrationInfo?.credentialPublicKey ? 'present' : 'missing'
+      credentialPublicKey: registrationInfo?.credentialPublicKey ? 'present' : 'missing',
+      credential: registrationInfo?.credential ? 'present' : 'missing',
+      aaguid: registrationInfo?.aaguid ? 'present' : 'missing'
     });
     
     // Validate registration info with better error details
     if (!registrationInfo) {
       console.error('❌ No registration info in verification response');
+      console.error('❌ Verification object:', Object.keys(verification));
       return res.status(400).json({
         status: 'fail',
         message: 'Invalid registration response - no registration info'
       });
     }
     
-    if (!registrationInfo.credentialID) {
+    // Check for credentialID with different possible property names
+    const credentialID = registrationInfo.credentialID || 
+                        registrationInfo.credential?.id || 
+                        registrationInfo.id;
+    
+    const credentialPublicKey = registrationInfo.credentialPublicKey || 
+                                registrationInfo.credential?.publicKey || 
+                                registrationInfo.publicKey;
+    
+    if (!credentialID) {
       console.error('❌ Missing credentialID in registration info');
+      console.error('❌ Available keys:', Object.keys(registrationInfo));
+      console.error('❌ Registration info:', JSON.stringify(registrationInfo, null, 2));
       return res.status(400).json({
         status: 'fail',
-        message: 'Invalid registration response - missing credential ID'
+        message: `Missing credential ID. Available properties: ${Object.keys(registrationInfo).join(', ')}. Please contact support with this info.`
       });
     }
     
-    if (!registrationInfo.credentialPublicKey) {
+    if (!credentialPublicKey) {
       console.error('❌ Missing credentialPublicKey in registration info');
+      console.error('❌ Available keys:', Object.keys(registrationInfo));
+      console.error('❌ Registration info:', JSON.stringify(registrationInfo, null, 2));
       return res.status(400).json({
         status: 'fail',
-        message: 'Invalid registration response - missing public key'
+        message: `Missing public key. Available properties: ${Object.keys(registrationInfo).join(', ')}. Please contact support with this info.`
       });
     }
     
     // Save the credential
     let credentialIdBase64, publicKeyBase64;
     try {
-      credentialIdBase64 = Buffer.from(registrationInfo.credentialID).toString('base64');
-      publicKeyBase64 = Buffer.from(registrationInfo.credentialPublicKey).toString('base64');
+      credentialIdBase64 = Buffer.from(credentialID).toString('base64');
+      publicKeyBase64 = Buffer.from(credentialPublicKey).toString('base64');
     } catch (bufferError) {
       console.error('Buffer conversion error:', bufferError);
       return res.status(400).json({
