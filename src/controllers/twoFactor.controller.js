@@ -18,63 +18,74 @@ const transporter = nodemailer.createTransport({
  * @param {String} userName - User's name
  */
 const sendOTPEmail = async (email, code, userName) => {
-  const mailOptions = {
-    from: `CheckMate Security <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: '🔐 Your CheckMate Verification Code',
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-          .code-box { background: white; border: 2px dashed #10b981; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }
-          .code { font-size: 32px; font-weight: bold; color: #10b981; letter-spacing: 5px; }
-          .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
-          .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>🔐 Verification Code</h1>
-          </div>
-          <div class="content">
-            <p>Hello <strong>${userName}</strong>,</p>
-            <p>You requested a verification code to access your CheckMate account. Use the code below to complete your login:</p>
-            
-            <div class="code-box">
-              <div class="code">${code}</div>
-              <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 14px;">This code expires in 10 minutes</p>
+  try {
+    console.log(`📧 Attempting to send OTP to ${email}`);
+    console.log(`📧 Email config: USER=${process.env.EMAIL_USER ? 'SET' : 'MISSING'}, PASS=${process.env.EMAIL_PASSWORD ? 'SET' : 'MISSING'}`);
+    
+    const mailOptions = {
+      from: `CheckMate Security <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: '🔐 Your CheckMate Verification Code',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+            .code-box { background: white; border: 2px dashed #10b981; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }
+            .code { font-size: 32px; font-weight: bold; color: #10b981; letter-spacing: 5px; }
+            .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+            .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔐 Verification Code</h1>
             </div>
-            
-            <div class="warning">
-              <strong>⚠️ Security Notice:</strong> If you didn't request this code, please ignore this email and secure your account immediately.
+            <div class="content">
+              <p>Hello <strong>${userName}</strong>,</p>
+              <p>You requested a verification code to access your CheckMate account. Use the code below to complete your login:</p>
+              
+              <div class="code-box">
+                <div class="code">${code}</div>
+                <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 14px;">This code expires in 10 minutes</p>
+              </div>
+              
+              <div class="warning">
+                <strong>⚠️ Security Notice:</strong> If you didn't request this code, please ignore this email and secure your account immediately.
+              </div>
+              
+              <p>For your security:</p>
+              <ul>
+                <li>Never share this code with anyone</li>
+                <li>CheckMate staff will never ask for this code</li>
+                <li>This code can only be used once</li>
+              </ul>
+              
+              <p>Best regards,<br><strong>CheckMate Security Team</strong></p>
             </div>
-            
-            <p>For your security:</p>
-            <ul>
-              <li>Never share this code with anyone</li>
-              <li>CheckMate staff will never ask for this code</li>
-              <li>This code can only be used once</li>
-            </ul>
-            
-            <p>Best regards,<br><strong>CheckMate Security Team</strong></p>
+            <div class="footer">
+              <p>This is an automated message from CheckMate Attendance System</p>
+              <p>© 2025 CheckMate. All rights reserved.</p>
+            </div>
           </div>
-          <div class="footer">
-            <p>This is an automated message from CheckMate Attendance System</p>
-            <p>© 2025 CheckMate. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `
-  };
-  
-  await transporter.sendMail(mailOptions);
+        </body>
+        </html>
+      `
+    };
+    
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent successfully to ${email}. MessageId: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ FAILED to send email to ${email}:`, error.message);
+    console.error(`❌ Error details:`, error);
+    throw new Error(`Email sending failed: ${error.message}`);
+  }
 };
 
 /**

@@ -33,7 +33,7 @@ const webauthnCredentialSchema = new mongoose.Schema({
   // Device information
   deviceType: {
     type: String,
-    enum: ['platform', 'cross-platform'],
+    enum: ['platform', 'cross-platform', 'singleDevice', 'multiDevice'],
     default: 'platform'
   },
   // Authenticator info
