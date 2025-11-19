@@ -31,8 +31,32 @@ exports.generateRegistrationOptions = async (req, res) => {
       });
     }
     
+    if (!user._id || !user.email || !user.name) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user data'
+      });
+    }
+    
     // Get existing credentials for this user
     const existingCredentials = await WebAuthnCredential.findByUserId(user._id);
+    
+    // Map existing credentials with safety check
+    const excludeCredentials = existingCredentials
+      .filter(cred => cred.credentialId) // Filter out credentials without ID
+      .map(cred => {
+        try {
+          return {
+            id: Buffer.from(cred.credentialId, 'base64'),
+            type: 'public-key',
+            transports: cred.transports || ['internal']
+          };
+        } catch (error) {
+          console.warn('Skipping invalid credential:', cred._id);
+          return null;
+        }
+      })
+      .filter(cred => cred !== null); // Remove null entries
     
     const options = await generateRegistrationOptions({
       rpName,
@@ -43,11 +67,7 @@ exports.generateRegistrationOptions = async (req, res) => {
       // Don't prompt users for additional information about the authenticator
       attestationType: 'none',
       // Prevent users from re-registering existing authenticators
-      excludeCredentials: existingCredentials.map(cred => ({
-        id: Buffer.from(cred.credentialId, 'base64'),
-        type: 'public-key',
-        transports: cred.transports
-      })),
+      excludeCredentials,
       authenticatorSelection: {
         // Prefer platform authenticators (built-in biometrics)
         authenticatorAttachment: 'platform',
@@ -161,12 +181,32 @@ exports.verifyRegistration = async (req, res) => {
     
     const { registrationInfo } = verification;
     
+    // Validate registration info
+    if (!registrationInfo || !registrationInfo.credentialID || !registrationInfo.credentialPublicKey) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid registration info received'
+      });
+    }
+    
     // Save the credential
+    let credentialIdBase64, publicKeyBase64;
+    try {
+      credentialIdBase64 = Buffer.from(registrationInfo.credentialID).toString('base64');
+      publicKeyBase64 = Buffer.from(registrationInfo.credentialPublicKey).toString('base64');
+    } catch (bufferError) {
+      console.error('Buffer conversion error:', bufferError);
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Failed to process credential data'
+      });
+    }
+    
     const newCredential = await WebAuthnCredential.create({
       userId: user._id,
-      credentialId: Buffer.from(registrationInfo.credentialID).toString('base64'),
-      publicKey: Buffer.from(registrationInfo.credentialPublicKey).toString('base64'),
-      counter: registrationInfo.counter,
+      credentialId: credentialIdBase64,
+      publicKey: publicKeyBase64,
+      counter: registrationInfo.counter || 0,
       deviceType: registrationInfo.credentialDeviceType,
       aaguid: registrationInfo.aaguid,
       credentialBackedUp: registrationInfo.credentialBackedUp,
@@ -241,13 +281,33 @@ exports.generateAuthenticationOptions = async (req, res) => {
       });
     }
     
+    // Map credentials with safety check
+    const allowCredentials = credentials
+      .filter(cred => cred.credentialId)
+      .map(cred => {
+        try {
+          return {
+            id: Buffer.from(cred.credentialId, 'base64'),
+            type: 'public-key',
+            transports: cred.transports || ['internal']
+          };
+        } catch (error) {
+          console.warn('Skipping invalid credential:', cred._id);
+          return null;
+        }
+      })
+      .filter(cred => cred !== null);
+    
+    if (allowCredentials.length === 0) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'No valid biometric credentials found'
+      });
+    }
+    
     const options = await generateAuthenticationOptions({
       rpID,
-      allowCredentials: credentials.map(cred => ({
-        id: Buffer.from(cred.credentialId, 'base64'),
-        type: 'public-key',
-        transports: cred.transports
-      })),
+      allowCredentials,
       userVerification: 'preferred'
     });
     
@@ -300,7 +360,30 @@ exports.verifyAuthentication = async (req, res) => {
     }
     
     // Find the credential
-    const credentialId = Buffer.from(credential.rawId, 'base64').toString('base64');
+    if (!credential.rawId && !credential.id) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid credential data - missing rawId or id'
+      });
+    }
+    
+    // Try to get credential ID from rawId or id field
+    let credentialId;
+    try {
+      if (credential.rawId) {
+        credentialId = Buffer.from(credential.rawId, 'base64').toString('base64');
+      } else if (credential.id) {
+        // ID might already be in base64 format
+        credentialId = credential.id;
+      }
+    } catch (bufferError) {
+      console.error('Buffer conversion error:', bufferError);
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid credential format'
+      });
+    }
+    
     const dbCredential = await WebAuthnCredential.findByCredentialId(credentialId);
     
     if (!dbCredential || dbCredential.userId.toString() !== user._id.toString()) {
@@ -324,17 +407,36 @@ exports.verifyAuthentication = async (req, res) => {
       });
     }
     
+    // Prepare authenticator data with safety checks
+    let authenticatorData;
+    try {
+      if (!dbCredential.credentialId || !dbCredential.publicKey) {
+        return res.status(400).json({
+          status: 'fail',
+          message: 'Invalid stored credential data'
+        });
+      }
+      
+      authenticatorData = {
+        credentialID: Buffer.from(dbCredential.credentialId, 'base64'),
+        credentialPublicKey: Buffer.from(dbCredential.publicKey, 'base64'),
+        counter: dbCredential.counter || 0
+      };
+    } catch (bufferError) {
+      console.error('Authenticator data conversion error:', bufferError);
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Failed to process stored credential'
+      });
+    }
+    
     // Verify the authentication response
     const verification = await verifyAuthenticationResponse({
       response: credential,
       expectedChallenge: credential.response.clientDataJSON.challenge || credential.challenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
-      authenticator: {
-        credentialID: Buffer.from(dbCredential.credentialId, 'base64'),
-        credentialPublicKey: Buffer.from(dbCredential.publicKey, 'base64'),
-        counter: dbCredential.counter
-      },
+      authenticator: authenticatorData,
       requireUserVerification: false
     });
     
