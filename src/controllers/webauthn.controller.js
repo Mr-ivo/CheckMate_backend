@@ -438,15 +438,26 @@ exports.verifyAuthentication = async (req, res) => {
     }
     
     // Try to get credential ID from rawId or id field
+    // rawId is already base64url encoded, id is the same value
     let credentialId;
     try {
       if (credential.rawId) {
-        credentialId = Buffer.from(credential.rawId, 'base64').toString('base64');
+        // rawId is already base64url, just use it directly
+        credentialId = credential.rawId;
         console.log(`📝 Credential ID from rawId: ${credentialId.substring(0, 20)}...`);
       } else if (credential.id) {
-        // ID might already be in base64 format
+        // ID is the same as rawId
         credentialId = credential.id;
         console.log(`📝 Credential ID from id: ${credentialId.substring(0, 20)}...`);
+      }
+      
+      // Also try searching by the id field directly
+      if (!credentialId) {
+        console.error('❌ No credential ID found in request');
+        return res.status(400).json({
+          status: 'fail',
+          message: 'Missing credential ID'
+        });
       }
     } catch (bufferError) {
       console.error('❌ Buffer conversion error:', bufferError);
