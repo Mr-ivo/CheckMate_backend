@@ -468,11 +468,34 @@ exports.verifyAuthentication = async (req, res) => {
     }
     
     console.log(`🔍 Looking up credential in database...`);
-    const dbCredential = await WebAuthnCredential.findByCredentialId(credentialId);
+    console.log(`🔍 Searching for credential ID: ${credentialId}`);
+    
+    // Try to find credential - the credentialId might be base64 encoded in DB
+    let dbCredential = await WebAuthnCredential.findByCredentialId(credentialId);
+    
+    // If not found, try base64 encoding the credential ID
+    if (!dbCredential) {
+      const credentialIdBase64 = Buffer.from(credentialId, 'base64url').toString('base64');
+      console.log(`🔍 Trying base64 encoded version: ${credentialIdBase64}`);
+      dbCredential = await WebAuthnCredential.findByCredentialId(credentialIdBase64);
+    }
+    
+    // If still not found, try base64url to base64 conversion
+    if (!dbCredential) {
+      try {
+        // credentialId might be base64url, convert to regular base64
+        const credentialIdRegularBase64 = credentialId.replace(/-/g, '+').replace(/_/g, '/');
+        console.log(`🔍 Trying regular base64: ${credentialIdRegularBase64}`);
+        dbCredential = await WebAuthnCredential.findByCredentialId(credentialIdRegularBase64);
+      } catch (e) {
+        console.error('❌ Error converting base64url to base64:', e);
+      }
+    }
     
     if (!dbCredential) {
       console.error(`❌ Credential not found in database`);
       console.error(`❌ Searched for: ${credentialId}`);
+      console.error(`❌ Also tried base64 encoded versions`);
       return res.status(401).json({
         status: 'fail',
         message: 'Credential not found. Please register this device first.'
