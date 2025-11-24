@@ -274,10 +274,14 @@ exports.verifyRegistration = async (req, res) => {
     }
     
     // Save the credential
-    let credentialIdBase64, publicKeyBase64;
+    // IMPORTANT: Use base64url encoding (not regular base64) to match WebAuthn standard
+    let credentialIdBase64Url, publicKeyBase64;
     try {
-      credentialIdBase64 = Buffer.from(credentialID).toString('base64');
+      // Convert to base64url (WebAuthn standard) - no padding, URL-safe characters
+      credentialIdBase64Url = Buffer.from(credentialID).toString('base64url');
       publicKeyBase64 = Buffer.from(credentialPublicKey).toString('base64');
+      
+      console.log(`📝 Saving credential ID (base64url): ${credentialIdBase64Url.substring(0, 30)}...`);
     } catch (bufferError) {
       console.error('Buffer conversion error:', bufferError);
       return res.status(400).json({
@@ -288,7 +292,7 @@ exports.verifyRegistration = async (req, res) => {
     
     const newCredential = await WebAuthnCredential.create({
       userId: user._id,
-      credentialId: credentialIdBase64,
+      credentialId: credentialIdBase64Url,
       publicKey: publicKeyBase64,
       counter: registrationInfo.counter || 0,
       deviceType: registrationInfo.credentialDeviceType,
@@ -468,38 +472,22 @@ exports.verifyAuthentication = async (req, res) => {
     }
     
     console.log(`🔍 Looking up credential in database...`);
-    console.log(`🔍 Searching for credential ID: ${credentialId}`);
+    console.log(`🔍 Searching for credential ID (base64url): ${credentialId}`);
     
-    // The credentialId from the client is base64url encoded
-    // But in the database, it's stored as regular base64
-    // We need to convert base64url → Buffer → base64
-    let dbCredential = null;
+    // Both registration and authentication now use base64url format
+    // Direct match should work
+    let dbCredential = await WebAuthnCredential.findByCredentialId(credentialId);
     
-    try {
-      // Method 1: Try direct match first
-      dbCredential = await WebAuthnCredential.findByCredentialId(credentialId);
-      
-      // Method 2: Convert base64url to base64 by replacing characters
-      if (!dbCredential) {
-        // Add padding if needed
-        let paddedId = credentialId;
-        while (paddedId.length % 4 !== 0) {
-          paddedId += '=';
-        }
-        const credentialIdBase64 = paddedId.replace(/-/g, '+').replace(/_/g, '/');
-        console.log(`🔍 Trying with padding and char replacement: ${credentialIdBase64}`);
-        dbCredential = await WebAuthnCredential.findByCredentialId(credentialIdBase64);
-      }
-      
-      // Method 3: Decode base64url to bytes, then encode as base64
-      if (!dbCredential) {
+    // Fallback: Try base64 format for old credentials
+    if (!dbCredential) {
+      try {
         const bytes = Buffer.from(credentialId, 'base64url');
         const credentialIdBase64 = bytes.toString('base64');
-        console.log(`🔍 Trying Buffer conversion: ${credentialIdBase64}`);
+        console.log(`🔍 Trying legacy base64 format: ${credentialIdBase64}`);
         dbCredential = await WebAuthnCredential.findByCredentialId(credentialIdBase64);
+      } catch (e) {
+        console.error('❌ Error during legacy format lookup:', e);
       }
-    } catch (e) {
-      console.error('❌ Error during credential lookup:', e);
     }
     
     if (!dbCredential) {
