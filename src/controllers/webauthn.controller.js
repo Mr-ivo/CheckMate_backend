@@ -22,16 +22,25 @@ const origin = process.env.ORIGIN || `http://${rpID}:3000`;
  */
 exports.generateRegistrationOptions = async (req, res) => {
   try {
+    console.log('🔐 Generating biometric registration options');
+    console.log(`📝 User ID: ${req.user._id}`);
+    console.log(`📝 RP_ID: ${rpID}`);
+    console.log(`📝 Origin: ${origin}`);
+    
     const user = await User.findById(req.user._id);
     
     if (!user) {
+      console.error('❌ User not found');
       return res.status(404).json({
         status: 'fail',
         message: 'User not found'
       });
     }
     
+    console.log(`✅ User found: ${user.email}`);
+    
     if (!user._id || !user.email || !user.name) {
+      console.error('❌ Invalid user data');
       return res.status(400).json({
         status: 'fail',
         message: 'Invalid user data'
@@ -98,10 +107,12 @@ exports.generateRegistrationOptions = async (req, res) => {
       data: { options }
     });
   } catch (error) {
-    console.error('Error generating registration options:', error);
+    console.error('❌ Error generating registration options:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: `Failed to generate registration options: ${error.message}`,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

@@ -38,7 +38,7 @@ const geofenceSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Radius is required'],
     min: [10, 'Radius must be at least 10 meters'],
-    max: [5000, 'Radius cannot exceed 5000 meters'],
+    max: [10000, 'Radius cannot exceed 10000 meters'],
     default: 100 // 100 meters default
   },
   address: {
@@ -227,9 +227,9 @@ geofenceSchema.statics.findNearby = async function(latitude, longitude, maxDista
 geofenceSchema.statics.findValidGeofence = async function(latitude, longitude, department = null) {
   console.log(`🔍 Finding valid geofence for: lat=${latitude}, lon=${longitude}, dept=${department}`);
   
-  // Find nearby geofences (within 500m)
-  const nearbyGeofences = await this.findNearby(latitude, longitude, 500);
-  console.log(`📍 Found ${nearbyGeofences.length} nearby geofences within 500m`);
+  // Find nearby geofences (within 2000m to catch all possible geofences)
+  const nearbyGeofences = await this.findNearby(latitude, longitude, 2000);
+  console.log(`📍 Found ${nearbyGeofences.length} nearby geofences within 2000m`);
   
   // Filter by department if provided
   let geofences = nearbyGeofences;

@@ -10,7 +10,7 @@ async function updateEmail() {
     console.log('✅ Connected to MongoDB');
 
     const oldEmail = 'nzoggeivo@gmail.com';
-    const newEmail = 'admin@checkmate.com'; // CHANGE THIS!
+    const newEmail = 'admin@checkmate.com'; 
     
     const user = await User.findOneAndUpdate(
       { email: oldEmail },

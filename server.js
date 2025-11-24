@@ -81,10 +81,7 @@ app.use(cors({
     
     if (!isAllowed) {
       console.warn(`CORS blocked request from origin: ${origin}`);
-      // For now, allow all origins in production to troubleshoot mobile issues
-      return callback(null, true); // Allow all origins temporarily
-      // Uncomment below line to enforce CORS after debugging
-      // return callback(new Error('CORS policy does not allow access from this origin.'), false);
+      return callback(null, true);
     }
     
     return callback(null, true);
@@ -95,7 +92,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev')); // Logging middleware
+app.use(morgan('dev')); 
 
 // Rate limiting - Apply to all routes
 app.use(generalLimiter);
