@@ -50,22 +50,31 @@ exports.generateRegistrationOptions = async (req, res) => {
     // Get existing credentials for this user
     const existingCredentials = await WebAuthnCredential.findByUserId(user._id);
     
+    console.log(`📝 Found ${existingCredentials.length} existing credentials`);
+    
     // Map existing credentials with safety check
     const excludeCredentials = existingCredentials
-      .filter(cred => cred.credentialId) // Filter out credentials without ID
+      .filter(cred => cred.credentialId && typeof cred.credentialId === 'string') // Filter out invalid credentials
       .map(cred => {
         try {
+          // credentialId is already a base64 string in the database
+          // Convert it to a Buffer for the WebAuthn library
+          const idBuffer = Buffer.from(cred.credentialId, 'base64');
+          console.log(`📝 Excluding credential: ${cred.credentialId.substring(0, 20)}...`);
+          
           return {
-            id: Buffer.from(cred.credentialId, 'base64'),
+            id: idBuffer,
             type: 'public-key',
             transports: cred.transports || ['internal']
           };
         } catch (error) {
-          console.warn('Skipping invalid credential:', cred._id);
+          console.warn(`⚠️ Skipping invalid credential ${cred._id}:`, error.message);
           return null;
         }
       })
       .filter(cred => cred !== null); // Remove null entries
+    
+    console.log(`📝 Excluding ${excludeCredentials.length} credentials from registration`);
     
     const options = await generateRegistrationOptions({
       rpName,
