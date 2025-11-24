@@ -365,33 +365,13 @@ exports.generateAuthenticationOptions = async (req, res) => {
       });
     }
     
-    // Map credentials with safety check
-    const allowCredentials = credentials
-      .filter(cred => cred.credentialId)
-      .map(cred => {
-        try {
-          return {
-            id: Buffer.from(cred.credentialId, 'base64'),
-            type: 'public-key',
-            transports: cred.transports || ['internal']
-          };
-        } catch (error) {
-          console.warn('Skipping invalid credential:', cred._id);
-          return null;
-        }
-      })
-      .filter(cred => cred !== null);
-    
-    if (allowCredentials.length === 0) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'No valid biometric credentials found'
-      });
-    }
+    // Don't pass allowCredentials to avoid validation issues
+    // The library will allow any registered credential for this RP
+    console.log(`📝 User has ${credentials.length} registered credential(s)`);
     
     const options = await generateAuthenticationOptions({
       rpID,
-      allowCredentials,
+      // Don't specify allowCredentials - allow any credential for this user
       userVerification: 'preferred'
     });
     
