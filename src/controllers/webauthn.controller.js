@@ -278,10 +278,17 @@ exports.verifyRegistration = async (req, res) => {
     let credentialIdBase64Url, publicKeyBase64;
     try {
       // Convert to base64url (WebAuthn standard) - no padding, URL-safe characters
-      credentialIdBase64Url = Buffer.from(credentialID).toString('base64url');
+      // Manual conversion for compatibility with older Node.js versions
+      const base64 = Buffer.from(credentialID).toString('base64');
+      credentialIdBase64Url = base64
+        .replace(/\+/g, '-')  // Replace + with -
+        .replace(/\//g, '_')  // Replace / with _
+        .replace(/=/g, '');   // Remove padding
+      
       publicKeyBase64 = Buffer.from(credentialPublicKey).toString('base64');
       
       console.log(`📝 Saving credential ID (base64url): ${credentialIdBase64Url.substring(0, 30)}...`);
+      console.log(`📝 Node version: ${process.version}`);
     } catch (bufferError) {
       console.error('Buffer conversion error:', bufferError);
       return res.status(400).json({
