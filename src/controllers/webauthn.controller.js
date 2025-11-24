@@ -496,9 +496,17 @@ exports.verifyAuthentication = async (req, res) => {
       console.error(`❌ Credential not found in database`);
       console.error(`❌ Searched for: ${credentialId}`);
       console.error(`❌ Also tried base64 encoded versions`);
+      
+      // List all credentials for this user for debugging
+      const allUserCredentials = await WebAuthnCredential.find({ userId: user._id });
+      console.error(`❌ User has ${allUserCredentials.length} credential(s) in database:`);
+      allUserCredentials.forEach((cred, index) => {
+        console.error(`   ${index + 1}. ID: ${cred.credentialId} (${cred.name || 'Unnamed'})`);
+      });
+      
       return res.status(401).json({
         status: 'fail',
-        message: 'Credential not found. Please register this device first.'
+        message: 'This device is not registered. Please register it in Settings → Security → Biometric Authentication first.'
       });
     }
     
